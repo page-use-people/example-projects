@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { NewTodoInput, Todo } from "../types";
+import { useAgentState } from "../PageUse";
+import z from "zod";
 
 const STORAGE_KEY = "todo-list-spa.todos.v1";
 
@@ -15,7 +17,8 @@ function isValidTodo(value: unknown): value is Todo {
     typeof candidate.dueDate === "string" &&
     typeof candidate.completed === "boolean" &&
     typeof candidate.createdAt === "string" &&
-    (typeof candidate.completedAt === "string" || candidate.completedAt === null)
+    (typeof candidate.completedAt === "string" ||
+      candidate.completedAt === null)
   );
 }
 
@@ -38,7 +41,10 @@ function loadTodosFromStorage(): Todo[] {
 }
 
 function createId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
 
@@ -46,7 +52,24 @@ function createId(): string {
 }
 
 export function useTodos() {
-  const [todos, setTodos] = useState<Todo[]>(() => loadTodosFromStorage());
+  const [todos, setTodos] = useAgentState<Todo[]>(
+    () => loadTodosFromStorage(),
+    {
+      name: "todo_list",
+      schema: z
+        .array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            dueDate: z.string(),
+            completed: z.boolean(),
+            createdAt: z.string(),
+            completedAt: z.string().nullable(),
+          }),
+        )
+        .describe("array of todos"),
+    },
+  );
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
@@ -66,7 +89,7 @@ export function useTodos() {
           dueDate,
           completed: false,
           createdAt: new Date().toISOString(),
-          completedAt: null
+          completedAt: null,
         };
 
         setTodos((currentTodos) => [nextTodo, ...currentTodos]);
@@ -85,16 +108,18 @@ export function useTodos() {
             return {
               ...todo,
               completed: true,
-              completedAt: new Date().toISOString()
+              completedAt: new Date().toISOString(),
             };
-          })
+          }),
         );
       },
       clearCompleted: () => {
-        setTodos((currentTodos) => currentTodos.filter((todo) => !todo.completed));
-      }
+        setTodos((currentTodos) =>
+          currentTodos.filter((todo) => !todo.completed),
+        );
+      },
     }),
-    []
+    [],
   );
 
   return { todos, ...actions };
